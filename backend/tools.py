@@ -111,42 +111,99 @@ def analyze_price_movement(stock_data: Dict[str, Any]) -> str:
 
     return reasoning
 
-async def generate_stock_response(stock_data: Dict[str, Any], user_query: str, llm: ChatGoogleGenerativeAI) -> str:
+def get_monthly_stock_data(ticker_symbol: str) -> Dict[str, Any] | None:
     """
-    Generates a natural response about the stock with reasoning.
+    Fetches monthly stock data for graphing (past 30 days).
+    """
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+
+        # Get chart data days (default 30) with configurable interval
+        chart_days = int(os.getenv("CHART_DATA_DAYS", "30"))
+        chart_interval = os.getenv("CHART_INTERVAL", "1d")
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=chart_days)
+
+        hist_data = ticker.history(start=start_date, end=end_date, interval=chart_interval)
+
+        if len(hist_data) == 0:
+            return None
+
+        # Convert to format suitable for graphing
+        chart_data = []
+        for date, row in hist_data.iterrows():
+            chart_data.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "open": round(row['Open'], 2),
+                "high": round(row['High'], 2),
+                "low": round(row['Low'], 2),
+                "close": round(row['Close'], 2),
+                "volume": int(row['Volume'])
+            })
+
+        return {
+            "ticker": ticker_symbol,
+            "period": f"{chart_days}d",
+            "interval": chart_interval,
+            "data": chart_data
+        }
+
+    except Exception as e:
+        print(f"Error fetching monthly data for {ticker_symbol}: {e}")
+        return None
+
+async def generate_stock_response(stock_data: Dict[str, Any], user_query: str, llm: ChatGoogleGenerativeAI) -> Dict[str, Any]:
+    """
+    Generates a structured response about the stock with separate components for UI display.
     """
     if not stock_data:
-        return "I couldn't fetch the stock data. Please check the ticker symbol and try again."
+        return {
+            "message": "I couldn't fetch the stock data. Please check the ticker symbol and try again.",
+            "price": None,
+            "changePercent": None,
+            "monthlyData": None
+        }
 
     company_name = stock_data.get('companyName', stock_data['ticker'])
     current_price = stock_data.get('currentPrice')
+    change_percent = stock_data.get('dailyChangePercent', 0)
     reasoning = analyze_price_movement(stock_data)
+
+    # Get monthly data for graphing
+    monthly_data = get_monthly_stock_data(stock_data['ticker'])
 
     prompt = f"""
     You are a helpful stock analyst. A user asked: "{user_query}"
 
     Stock data for {company_name} ({stock_data['ticker']}):
     - Current price: ${current_price:.2f}
+    - Daily change: {change_percent:.2f}%
     - Price analysis: {reasoning}
 
-    Provide a natural, conversational response that:
-    1. States the current price clearly
-    2. Includes the reasoning about what's happened in the last 24 hours
-    3. Keeps it concise but informative
-    4. Ends with a disclaimer about not being financial advice
+    Provide a natural, conversational response that focuses on the analysis and context.
+    Do NOT mention the current price or percentage change, as those will be displayed separately.
+    Keep it concise but informative, and end with a disclaimer about not being financial advice.
 
-    Make it sound like a knowledgeable friend explaining the stock's current situation.
+    Make it sound like a knowledgeable friend explaining the stock's current situation and market context.
     """
 
     messages = [
-        SystemMessage(content="You are a knowledgeable stock analyst providing clear, conversational updates about stock performance."),
+        SystemMessage(content="You are a knowledgeable stock analyst providing clear, conversational updates about stock performance. Focus on analysis and context, not raw numbers."),
         HumanMessage(content=prompt)
     ]
 
     try:
         response = await llm.ainvoke(messages)
-        return response.content
+        message = response.content
     except Exception as e:
         print(f"Error generating response: {e}")
-        # Fallback response
-        return f"{company_name} ({stock_data['ticker']}) is currently trading at ${current_price:.2f}. {reasoning} Please note this is not financial advice."
+        # Fallback message
+        message = f"{company_name} is showing some interesting market activity. {reasoning.split('.')[0]}. Please note this is not financial advice."
+
+    return {
+        "message": message,
+        "price": round(current_price, 2) if current_price else None,
+        "changePercent": round(change_percent, 2),
+        "monthlyData": monthly_data
+    }

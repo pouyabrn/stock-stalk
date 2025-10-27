@@ -70,15 +70,20 @@ async def fetch_and_analyze_node(state: AgentState) -> AgentState:
     if not stock_data:
         return {"stock_data": None, "final_response": f"I couldn't fetch data for {ticker}. Please check the ticker symbol and try again."}
 
-    # Generate response with reasoning
+    # Generate structured response with reasoning
     query = state["query"]
-    final_response = await generate_stock_response(stock_data, query, llm)
+    response_data = await generate_stock_response(stock_data, query, llm)
 
-    return {"stock_data": stock_data, "final_response": final_response}
+    return {"stock_data": stock_data, "final_response": response_data}
 
 async def handle_no_ticker_node(state: AgentState) -> AgentState:
     print("---HANDLING NO TICKER---")
-    return {"final_response": "I couldn't find a stock ticker in your request. Please provide a valid ticker symbol, like 'AAPL' or 'MSFT'."}
+    return {"final_response": {
+        "message": "I couldn't find a stock ticker in your request. Please provide a valid ticker symbol, like 'AAPL' or 'MSFT'.",
+        "price": None,
+        "changePercent": None,
+        "monthlyData": None
+    }}
 
 # Define the LangGraph workflow
 workflow = StateGraph(AgentState)
