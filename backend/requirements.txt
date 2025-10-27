@@ -1,0 +1,16 @@
+# Core web framework
+fastapi[all]==0.120.0
+uvicorn==0.38.0
+
+# AI/ML packages
+langchain==1.0.2
+langchain-google-genai==3.0.0
+langgraph==1.0.1
+
+# Data and utilities
+yfinance==0.2.66
+python-dotenv==1.2.1
+
+# Optional: For testing (uncomment if needed)
+# pytest==7.4.0
+# httpx==0.25.0
