@@ -229,3 +229,9 @@ If you find bugs, have ideas for improvements, or want to chat about how I appro
 ---
 
 Built with curiosity and AI assistance.
+
+
+<img width="1919" height="1372" alt="screencapture-localhost-3000-2025-10-29-15_41_02" src="https://github.com/user-attachments/assets/6e72caf9-e069-47ee-9414-244c4e47b0be" />
+<img width="1919" height="2483" alt="screencapture-localhost-3000-2025-10-29-15_43_14" src="https://github.com/user-attachments/assets/b0a574a0-5a3f-413c-8a49-661e620bb045" />
+<img width="1919" height="1702" alt="screencapture-localhost-3000-2025-10-29-15_50_53 (1)" src="https://github.com/user-attachments/assets/dec984f9-8691-404c-b116-a216c5b3bf7d" />
+
