@@ -12,7 +12,7 @@ def get_stock_data(ticker_symbol: str) -> Dict[str, Any] | None:
     """
     try:
         ticker = yf.Ticker(ticker_symbol)
-
+        
         # Get basic info
         info = ticker.info
         company_name = info.get('longName', ticker_symbol.upper())
@@ -66,7 +66,7 @@ def get_stock_data(ticker_symbol: str) -> Dict[str, Any] | None:
             "sector": info.get('sector'),
             "timestamp": datetime.now().isoformat()
         }
-
+    
     except Exception as e:
         print(f"Error fetching data for {ticker_symbol}: {e}")
         return None
@@ -189,10 +189,10 @@ async def generate_stock_response(stock_data: Dict[str, Any], user_query: str, l
     """
 
     messages = [
-        SystemMessage(content="You are a knowledgeable stock analyst providing clear, conversational updates about stock performance. Focus on analysis and context, not raw numbers."),
+        SystemMessage(content="You are a knowledgeable stock analyst providing clear, conversational updates about stock performance. Focus on analysis and context, not raw numbers. NEVER start responses with greetings like 'Hey there!', 'Great question!', or similar phrases. Jump straight into the analysis."),
         HumanMessage(content=prompt)
     ]
-
+    
     try:
         response = await llm.ainvoke(messages)
         message = response.content

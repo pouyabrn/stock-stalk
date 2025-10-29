@@ -11,6 +11,9 @@ langgraph==1.0.1
 yfinance==0.2.66
 python-dotenv==1.2.1
 
+# Database
+sqlalchemy==2.0.35
+
 # Optional: For testing (uncomment if needed)
 # pytest==7.4.0
 # httpx==0.25.0

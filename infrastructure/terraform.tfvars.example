@@ -1,0 +1,27 @@
+# Project Configuration
+project_name = "stock-stalk"
+environment  = "dev"
+
+# AWS Configuration
+aws_region = "us-east-1"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+az_count = 2
+
+# ECS Configuration
+backend_cpu    = 256
+backend_memory = 512
+frontend_cpu   = 256
+frontend_memory = 512
+
+backend_desired_count  = 1
+frontend_desired_count = 1
+
+# Application Configuration
+google_api_key = "your-google-api-key-here"
+
+# Domain Configuration (optional)
+domain_name           = ""
+create_route53_record = false
+
