@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from pydantic import BaseModel
 from typing import Dict, Any, List, TypedDict, Optional, Union
 from langgraph.graph import StateGraph, END
+from langfuse import Langfuse
 
 from tools import get_stock_data, generate_stock_response, get_monthly_stock_data
 from database import create_tables, get_db, create_chat, add_message_to_chat, get_chat_history, get_all_chats, update_chat_title
@@ -26,6 +27,26 @@ gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 if not google_api_key:
     raise ValueError("GOOGLE_API_KEY not found in environment variables. Please set it in a .env file or directly in your environment.")
+
+# Initialize Langfuse client for tracing
+langfuse_client = None
+try:
+    langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+    langfuse_base_url = os.getenv("LANGFUSE_BASE_URL", "https://cloud.langfuse.com")
+    
+    if langfuse_public_key and langfuse_secret_key:
+        langfuse_client = Langfuse(
+            public_key=langfuse_public_key,
+            secret_key=langfuse_secret_key,
+            host=langfuse_base_url
+        )
+        print("✓ Langfuse tracing initialized successfully")
+    else:
+        print("⚠ Langfuse credentials not found - tracing disabled")
+except Exception as e:
+    print(f"⚠ Langfuse initialization failed: {e} - tracing disabled")
+    langfuse_client = None
 
 # Initialize the Gemini model
 llm = ChatGoogleGenerativeAI(model=gemini_model, google_api_key=google_api_key)
@@ -121,11 +142,11 @@ async def handle_stock_comparison_node(state: AgentState) -> AgentState:
             "monthlyData": None
         }}
 
-    # Fetch data for all tickers
+    # Fetch data for all tickers (removed 5 ticker limit)
     comparison_data = []
     valid_tickers = []
 
-    for ticker in tickers[:5]:  # Limit to 5 tickers for performance
+    for ticker in tickers[:10]:  # Increased limit to 10 tickers
         stock_data = get_stock_data(ticker)
         monthly_data = get_monthly_stock_data(ticker)
         if stock_data and monthly_data and len(monthly_data.get('data', [])) > 0:
@@ -287,6 +308,15 @@ async def read_root():
 
 @app.post("/chat")
 async def chat_with_gemini(request: ChatRequest):
+    # Create Langfuse trace for this chat session
+    trace = None
+    if langfuse_client:
+        trace = langfuse_client.trace(
+            name="stock-chat",
+            input={"message": request.message, "session_id": request.session_id},
+            user_id=str(request.session_id) if request.session_id else "new_session"
+        )
+    
     try:
         # Get database session
         db = next(get_db())
@@ -346,12 +376,22 @@ async def chat_with_gemini(request: ChatRequest):
                     monthly_data=json.dumps(response_data.get("monthlyData")) if response_data.get("monthlyData") else None,
                     comparison_data=json.dumps(response_data.get("comparisonData")) if response_data.get("comparisonData") else None
                 )
+                
+                # Update Langfuse trace with output
+                if trace:
+                    trace.update(output={"response": "success", "session_id": chat_id})
+                    langfuse_client.flush()
+                
                 return {"response": response_data, "session_id": chat_id}
         else:
             raise HTTPException(status_code=500, detail="Failed to generate a response from the stock agent.")
 
     except Exception as e:
         print(f"Error in chat endpoint: {e}")
+        # Update trace with error
+        if trace:
+            trace.update(output={"error": str(e)})
+            langfuse_client.flush()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/chats")
@@ -425,3 +465,67 @@ async def delete_chat(chat_id: int):
     except Exception as e:
         print(f"Error deleting chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/test-langfuse")
+async def test_langfuse():
+    """
+    Simple test endpoint to verify Langfuse integration.
+    Sends a 'Hello' message to the LLM and traces it in Langfuse.
+    """
+    try:
+        if not langfuse_client:
+            return {
+                "status": "warning",
+                "message": "Langfuse is not configured. Please set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in your .env file.",
+                "traced": False
+            }
+        
+        # Create a trace for this test
+        trace = langfuse_client.trace(
+            name="langfuse-test",
+            input={"test_message": "Hello"},
+            user_id="test_user",
+            metadata={"purpose": "Langfuse integration test"}
+        )
+        
+        # Create a generation span within the trace
+        generation = trace.generation(
+            name="test-llm-call",
+            model=gemini_model,
+            input=[
+                {"role": "system", "content": "You are a helpful assistant. Keep responses brief."},
+                {"role": "user", "content": "Hello! Just say 'Hello from Stock Stalk!' in a friendly way."}
+            ]
+        )
+        
+        # Send a simple message to the LLM
+        messages = [
+            SystemMessage(content="You are a helpful assistant. Keep responses brief."),
+            HumanMessage(content="Hello! Just say 'Hello from Stock Stalk!' in a friendly way.")
+        ]
+        
+        response = await llm.ainvoke(messages)
+        
+        # Update the generation with the output
+        generation.end(output=response.content)
+        
+        # Update trace with success
+        trace.update(output={"llm_response": response.content})
+        
+        # Flush to ensure trace is sent to Langfuse
+        langfuse_client.flush()
+        
+        return {
+            "status": "success",
+            "message": "Langfuse test completed! Check your Langfuse dashboard.",
+            "llm_response": response.content,
+            "traced": True,
+            "instructions": "Go to your Langfuse dashboard at https://cloud.langfuse.com to see the trace named 'langfuse-test'"
+        }
+    
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Langfuse test failed: {str(e)}",
+            "traced": False
+        }

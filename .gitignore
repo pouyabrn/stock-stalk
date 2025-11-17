@@ -55,3 +55,7 @@ coverage/
 
 # Documentation builds
 docs/_build/
+UPDATES_SUMMARY.md
+.gitignore
+LANGFUSE_SETUP.md
+LANGFUSE_INTEGRATION.md

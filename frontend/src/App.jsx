@@ -255,9 +255,39 @@ const StalkStockChat = () => {
   const [chatHistory, setChatHistory] = useState([]);
   const [showSidebar, setShowSidebar] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [thinkingPhrase, setThinkingPhrase] = useState('Analyzing market data');
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const chartRefs = useRef({});
+
+  // Creative thinking phrases that rotate
+  const thinkingPhrases = [
+    'Analyzing market data',
+    'Consulting the crystal ball',
+    'Reading the tea leaves',
+    'Crunching the numbers',
+    'Channeling Warren Buffett',
+    'Decoding Wall Street signals',
+    'Summoning financial wisdom',
+    'Calculating trajectories',
+    'Parsing stock patterns',
+    'Contemplating gains',
+    'Evaluating positions',
+    'Studying the charts',
+    'Pondering portfolios',
+    'Investigating indicators',
+    'Examining fundamentals'
+  ];
+
+  // Rotate thinking phrases while streaming
+  useEffect(() => {
+    if (isStreaming) {
+      const interval = setInterval(() => {
+        setThinkingPhrase(thinkingPhrases[Math.floor(Math.random() * thinkingPhrases.length)]);
+      }, 2000); // Change phrase every 2 seconds
+      return () => clearInterval(interval);
+    }
+  }, [isStreaming]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -451,12 +481,12 @@ const StalkStockChat = () => {
       if (Array.isArray(data.response)) {
         // Handle multiple stock responses - stream sequentially for reliability
         for (const response of data.response) {
-          await simulateStreamingResponse(response, 3); // Fast sequential streaming
+          await simulateStreamingResponse(response, 1); // Fast sequential streaming (1ms per char)
         }
         setIsStreaming(false); // Reset streaming state
       } else {
         // Handle single response (general finance or single stock)
-        await simulateStreamingResponse(data.response, 10); // Normal speed for single response
+        await simulateStreamingResponse(data.response, 2); // Fast response (2ms per char)
       }
 
     } catch (error) {
@@ -475,7 +505,7 @@ const StalkStockChat = () => {
   };
 
   // BACKEND INTEGRATION: Text Streaming Handler
-  const simulateStreamingResponse = async (apiResponse, delay = 10) => {
+  const simulateStreamingResponse = async (apiResponse, delay = 2) => {
     const fullResponse = apiResponse.message;
 
     let streamedContent = '';
@@ -997,6 +1027,26 @@ const StalkStockChat = () => {
         backdropFilter: 'blur(10px)'
       }}>
         <div className="max-w-5xl mx-auto">
+          {/* Thinking Indicator */}
+          {isStreaming && (
+            <div className="mb-3 flex items-center gap-2 text-sm animate-fadeIn" style={{ color: '#9e776f' }}>
+              <div className="flex gap-1">
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ 
+                  background: '#9e776f',
+                  animationDelay: '0ms' 
+                }}></div>
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ 
+                  background: '#9e776f',
+                  animationDelay: '150ms' 
+                }}></div>
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ 
+                  background: '#9e776f',
+                  animationDelay: '300ms' 
+                }}></div>
+              </div>
+              <span className="font-medium">{thinkingPhrase}...</span>
+            </div>
+          )}
           <div className="relative flex items-end gap-3">
             <div className="flex-1 relative">
               <textarea
